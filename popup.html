@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 220px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    h1 span { font-size: 18px; }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .label { font-size: 13px; color: #ccc; }
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+    .switch input { display: none; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #444;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    input:checked + .slider { background: #4ade80; }
+    input:checked + .slider::before { transform: translateX(18px); }
+    .btn {
+      width: 100%;
+      padding: 8px;
+      background: #222;
+      border: 1px solid #333;
+      color: #ccc;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #2a2a2a; color: #fff; }
+    .lang-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    select {
+      background: #222;
+      color: #eee;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: #4ade80; }
+    .key-row {
+      margin-bottom: 12px;
+    }
+    .key-row .label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .key-input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #eee;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-family: monospace;
+    }
+    .key-input:focus { outline: none; border-color: #4ade80; }
+    .key-link {
+      font-size: 10px;
+      color: #4ade80;
+      text-decoration: none;
+      display: block;
+      margin-top: 3px;
+    }
+    .key-link:hover { text-decoration: underline; }
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+    .status {
+      font-size: 11px;
+      color: #4ade80;
+      margin-top: 6px;
+      min-height: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1><span>📖</span> Manga Translator</h1>
+
+  <div class="key-row">
+    <span class="label">OpenRouter API Key</span>
+    <input type="password" id="apiKey" class="key-input" placeholder="sk-or-..." autocomplete="off" />
+    <a class="key-link" href="https://openrouter.ai/keys" target="_blank">Daftar gratis di openrouter.ai →</a>
+  </div>
+
+  <div class="key-row">
+    <span class="label">Model
+      <a class="key-link" style="display:inline;margin-left:6px"
+         href="https://openrouter.ai/models?supported_parameters=vision" target="_blank">
+        browse →
+      </a>
+    </span>
+    <select id="modelSelect">
+      <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen2.5 VL 72B (free)</option>
+      <option value="meta-llama/llama-4-scout:free">Llama 4 Scout (free)</option>
+      <option value="meta-llama/llama-4-maverick:free">Llama 4 Maverick (free)</option>
+      <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (free)</option>
+      <option value="microsoft/phi-4-multimodal-instruct:free">Phi-4 Multimodal (free)</option>
+    </select>
+    <input type="text" id="customModel" class="key-input" placeholder="atau ketik model ID custom..."
+           style="margin-top:5px" autocomplete="off" spellcheck="false" />
+  </div>
+
+  <div class="lang-row">
+    <span class="label">Bahasa sumber</span>
+    <select id="sourceLangSelect">
+      <option value="ja">🇯🇵 Jepang</option>
+      <option value="vi">🇻🇳 Vietnam</option>
+      <option value="en">🇬🇧 English</option>
+      <option value="zh">🇨🇳 China</option>
+      <option value="ko">🇰🇷 Korea</option>
+    </select>
+  </div>
+
+  <div class="lang-row">
+    <span class="label">Bahasa tujuan</span>
+    <select id="targetLangSelect">
+      <option value="id">🇮🇩 Indonesia</option>
+      <option value="vi">🇻🇳 Vietnam</option>
+      <option value="en">🇬🇧 English</option>
+    </select>
+  </div>
+
+  <div class="toggle-row">
+    <span class="label">Aktifkan</span>
+    <label class="switch">
+      <input type="checkbox" id="toggle" />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <button class="btn" id="clearBtn" style="margin-top:8px">Hapus Semua Terjemahan</button>
+
+  <p class="hint" id="hint">Aktifkan lalu klik gambar manga untuk menerjemahkan</p>
+
+  <script src="popup.js"></script>
+</body>
+</html>

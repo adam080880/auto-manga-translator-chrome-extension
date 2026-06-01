@@ -1,0 +1,13 @@
+# Downloaded at runtime via download-deps.sh — tidak perlu di-commit
+lib/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Secrets (just in case)
+.env
