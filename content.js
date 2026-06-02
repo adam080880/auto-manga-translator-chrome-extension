@@ -1,9 +1,11 @@
 let isActive    = false;
 let sourceLang  = "vi";
 let targetLang  = "id";
+let mode        = "drag"; // "drag" | "full"
 let selectionBox = null;
 let stickyNote   = null;
-let overlayContainer = null; // kept for removeOverlay compat
+let cornerPanel  = null;
+let overlayContainer = null;
 
 // Drag state
 let isDragging = false;
@@ -24,9 +26,16 @@ const LANG_NAMES = {
 // Free vision models on OpenRouter (user can change in popup)
 const DEFAULT_MODEL = "qwen/qwen2.5-vl-72b-instruct:free";
 
-async function callVision(base64Image, mimeType, apiKey) {
-  const targetName = LANG_NAMES[targetLang] || targetLang;
-  const sourceName = LANG_NAMES[sourceLang] || sourceLang;
+function buildPrompt(fullPage = false) {
+  const src = LANG_NAMES[sourceLang] || sourceLang;
+  const tgt = LANG_NAMES[targetLang] || targetLang;
+  if (fullPage) {
+    return `This is a manga page in ${src}. Manga is read right-to-left, top-to-bottom. Find every speech bubble and text box, order them in correct manga reading order (right column before left, top before bottom), then translate each one to ${tgt}. Return a numbered list — one translation per line, e.g. "1. text here". No extra commentary.`;
+  }
+  return `This is a manga speech bubble in ${src}. Extract all text and translate it to ${tgt}. Reply with only the translated text, no explanations.`;
+}
+
+async function callVision(base64Image, mimeType, apiKey, prompt) {
   const model = (await getSetting("customModel")) || (await getSetting("model")) || DEFAULT_MODEL;
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -42,11 +51,11 @@ async function callVision(base64Image, mimeType, apiKey) {
         role: "user",
         content: [
           { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
-          { type: "text", text: `This is a manga speech bubble in ${sourceName}. Extract all text and translate it to ${targetName}. Reply with only the translated text, no explanations.` }
+          { type: "text", text: prompt }
         ]
       }],
       temperature: 0.1,
-      max_tokens: 300,
+      max_tokens: 800,
     })
   });
 
@@ -81,6 +90,12 @@ async function getImageData(img) {
       });
     } catch { reject(new Error("Extension di-reload — refresh halaman (F5)")); }
   });
+}
+
+// For full page: get dataUrl and split to base64+mime
+async function getImageBase64(img) {
+  const dataUrl = await getImageData(img);
+  return { base64: dataUrl.split(",")[1], mime: "image/png" };
 }
 
 // ── Crop region from dataUrl ───────────────────────────────────────────────
@@ -178,7 +193,7 @@ async function processSelection(img, clientX, clientY, selW, selH) {
       fullDataUrl, dispX * sx, dispY * sy, dispW * sx, dispH * sy
     );
 
-    const translated = await callVision(base64, mime, apiKey);
+    const translated = await callVision(base64, mime, apiKey, buildPrompt(false));
 
     if (!translated) { showToast("Tidak ada teks di area ini"); removeSelectionBox(); return; }
 
@@ -198,6 +213,138 @@ function getSetting(key) {
 
 async function getApiKey() {
   return getSetting("openrouterKey");
+}
+
+// ── Draggable panels ───────────────────────────────────────────────────────
+
+function makeDraggable(el, handle) {
+  let startX, startY, startLeft, startTop;
+
+  handle.style.cursor = "grab";
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Convert right/bottom positioning to left/top so we can move freely
+    const rect = el.getBoundingClientRect();
+    el.style.left   = rect.left + "px";
+    el.style.top    = rect.top  + "px";
+    el.style.right  = "auto";
+    el.style.bottom = "auto";
+
+    startX    = e.clientX;
+    startY    = e.clientY;
+    startLeft = rect.left;
+    startTop  = rect.top;
+    handle.style.cursor = "grabbing";
+
+    const onMove = (e) => {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      // Clamp to viewport
+      const maxLeft = window.innerWidth  - el.offsetWidth;
+      const maxTop  = window.innerHeight - el.offsetHeight;
+      el.style.left = Math.max(0, Math.min(startLeft + dx, maxLeft)) + "px";
+      el.style.top  = Math.max(0, Math.min(startTop  + dy, maxTop))  + "px";
+    };
+
+    const onUp = () => {
+      handle.style.cursor = "grab";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
+
+// ── Full Page mode ─────────────────────────────────────────────────────────
+
+async function processFullImage(img) {
+  removeCornerPanel();
+  const rect = img.getBoundingClientRect();
+  const indicator = showIndicator(rect.left + rect.width / 2, rect.top + rect.height / 2);
+
+  try {
+    const apiKey = await getApiKey();
+    if (!apiKey) { showToast("Masukkan OpenRouter API key di popup dulu"); return; }
+
+    const { base64, mime } = await getImageBase64(img);
+    const result = await callVision(base64, mime, apiKey, buildPrompt(true));
+
+    if (!result) { showToast("Tidak ada teks yang terdeteksi"); return; }
+
+    showCornerPanel(result, img);
+  } catch (err) {
+    showToast("Error: " + err.message);
+  } finally {
+    indicator.remove();
+  }
+}
+
+// getImageData for full page returns base64 directly
+async function getFullImageData(img) {
+  const dataUrl = await getImageData(img);
+  return { base64: dataUrl.split(",")[1], mime: "image/png" };
+}
+
+// ── Corner panel ───────────────────────────────────────────────────────────
+
+function showCornerPanel(text, img) {
+  removeCornerPanel();
+
+  const rect = img.getBoundingClientRect();
+  const panel = document.createElement("div");
+  panel.className = "mt-corner-panel";
+  panel.style.cssText = `
+    position: fixed;
+    right: ${window.innerWidth - rect.right + 8}px;
+    bottom: ${window.innerHeight - rect.bottom + 8}px;
+    width: 260px;
+    max-height: ${Math.min(rect.height * 0.7, 400)}px;
+  `;
+
+  const header = document.createElement("div");
+  header.className = "mt-corner-header";
+
+  const title = document.createElement("span");
+  title.textContent = "Translation";
+
+  const close = document.createElement("button");
+  close.className = "mt-sticky-close";
+  close.textContent = "×";
+  close.style.position = "static";
+  close.addEventListener("click", removeCornerPanel);
+
+  header.appendChild(title);
+  header.appendChild(close);
+
+  const body = document.createElement("div");
+  body.className = "mt-corner-body";
+
+  // Parse numbered list from LLM output
+  const lines = text.split("\n").filter(l => l.trim());
+  lines.forEach((line) => {
+    const p = document.createElement("p");
+    p.className = "mt-corner-line";
+    p.textContent = line.trim();
+    body.appendChild(p);
+  });
+
+  panel.appendChild(header);
+  panel.appendChild(body);
+  document.body.appendChild(panel);
+  cornerPanel = panel;
+
+  makeDraggable(panel, header);
+}
+
+function removeCornerPanel() {
+  cornerPanel?.remove();
+  cornerPanel = null;
 }
 
 // ── Sticky note ────────────────────────────────────────────────────────────
@@ -241,6 +388,8 @@ function showStickyNote(text, selX, selY, selW, selH) {
   note.classList.add(arrowClass);
   note.style.left = left + "px";
   note.style.top  = Math.max(8, Math.min(selY, vh - 160)) + "px";
+
+  makeDraggable(note, note);
 }
 
 function removeStickyNote() {
@@ -293,15 +442,16 @@ function attachImageListeners() {
       if (!isActive || !isMangaImage(img)) return;
       e.preventDefault();
       e.stopPropagation();
-      startDrag(img, e);
+      if (mode === "drag") startDrag(img, e);
     });
 
-    // click juga perlu diblock — mousedown+mouseup = click, yang trigger navigasi
     img.addEventListener("click", (e) => {
       if (!isActive) return;
       e.preventDefault();
       e.stopPropagation();
-    }, true); // capture phase biar lebih cepat dari handler site
+      if (mode === "full" && isMangaImage(img)) processFullImage(img);
+    }, true);
+
     img.style.cursor = isActive ? "crosshair" : "";
   });
 }
@@ -319,15 +469,16 @@ try { chrome.runtime.onMessage.addListener((msg) => {
     isActive = msg.active;
     if (msg.sourceLang) sourceLang = msg.sourceLang;
     if (msg.targetLang) targetLang = msg.targetLang;
+    if (msg.mode) mode = msg.mode;
 
     if (!isActive) {
-      removeOverlay(); removeSelectionBox(); removeStickyNote();
+      removeOverlay(); removeSelectionBox(); removeStickyNote(); removeCornerPanel();
       document.querySelectorAll("img[data-mt-attached]").forEach(img => img.style.cursor = "");
     } else {
       attachImageListeners();
       document.querySelectorAll("img[data-mt-attached]").forEach(img => img.style.cursor = "crosshair");
-      showToast("Drag area speech bubble untuk menerjemahkan");
+      showToast(mode === "drag" ? "Drag area speech bubble untuk menerjemahkan" : "Klik gambar untuk translate seluruh halaman");
     }
   }
-  if (msg.type === "CLEAR") { removeOverlay(); removeSelectionBox(); removeStickyNote(); }
+  if (msg.type === "CLEAR") { removeOverlay(); removeSelectionBox(); removeStickyNote(); removeCornerPanel(); }
 }); } catch { /* context already invalidated */ }

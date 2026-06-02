@@ -7,6 +7,22 @@ const hint = document.getElementById("hint");
 const apiKeyInput  = document.getElementById("apiKey");
 const modelSelect   = document.getElementById("modelSelect");
 const customModel   = document.getElementById("customModel");
+const modeDrag = document.getElementById("modeDrag");
+const modeFull = document.getElementById("modeFull");
+
+let currentMode = "drag";
+
+function setMode(mode) {
+  currentMode = mode;
+  modeDrag.classList.toggle("active", mode === "drag");
+  modeFull.classList.toggle("active", mode === "full");
+  chrome.storage.local.set({ mode });
+  updateHint();
+  if (toggle.checked) sendToContent({ type: "TOGGLE", active: true, ...getLangs(), mode });
+}
+
+modeDrag.addEventListener("click", () => setMode("drag"));
+modeFull.addEventListener("click", () => setMode("full"));
 
 const SOURCE_LABELS = { ja: "JP", vi: "VI", en: "EN", zh: "ZH", ko: "KO" };
 const TARGET_LABELS = { id: "ID", vi: "VI", en: "EN" };
@@ -33,15 +49,18 @@ function updateHint() {
 }
 
 // restore saved state
-chrome.storage.local.get(["active", "sourceLang", "targetLang", "openrouterKey", "model", "customModel"], (s) => {
+chrome.storage.local.get(["active", "sourceLang", "targetLang", "openrouterKey", "model", "customModel", "mode"], (s) => {
   toggle.checked = !!s.active;
   sourceLangSelect.value = s.sourceLang || "vi";
   targetLangSelect.value = s.targetLang || "id";
   apiKeyInput.value  = s.openrouterKey || "";
   modelSelect.value  = s.model || "qwen/qwen2.5-vl-72b-instruct:free";
   customModel.value  = s.customModel || "";
+  currentMode = s.mode || "drag";
+  modeDrag.classList.toggle("active", currentMode === "drag");
+  modeFull.classList.toggle("active", currentMode === "full");
   updateHint();
-  if (s.active) status.textContent = "Aktif — drag area speech bubble";
+  if (s.active) status.textContent = currentMode === "drag" ? "Aktif — drag area speech bubble" : "Aktif — klik gambar untuk translate";
 });
 
 apiKeyInput.addEventListener("change", () => {
@@ -71,8 +90,10 @@ targetLangSelect.addEventListener("change", async () => {
 toggle.addEventListener("change", async () => {
   const active = toggle.checked;
   await chrome.storage.local.set({ active });
-  status.textContent = active ? "Aktif — drag area speech bubble" : "";
-  sendToContent({ type: "TOGGLE", active, ...getLangs() });
+  status.textContent = active
+    ? (currentMode === "drag" ? "Aktif — drag area speech bubble" : "Aktif — klik gambar untuk translate")
+    : "";
+  sendToContent({ type: "TOGGLE", active, ...getLangs(), mode: currentMode });
 });
 
 clearBtn.addEventListener("click", () => {

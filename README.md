@@ -8,9 +8,10 @@ A Chrome extension that lets you drag-select any manga speech bubble and instant
 
 ## Features
 
-- **Drag-to-select** — freely draw a selection box over any speech bubble
+- **Two translation modes** — Drag Select for precise bubble targeting, Full Page for translating an entire page at once
 - **Vision LLM** — OCR + translation in a single request, handles stylized manga fonts accurately
-- **Sticky note** — translation appears beside the selection, image stays visible
+- **Draggable panels** — sticky note and translation panel can be repositioned freely
+- **Manga reading order** — Full Page mode returns translations right-to-left, top-to-bottom
 - **Multiple source languages** — Japanese, Vietnamese, English, Chinese, Korean
 - **Multiple target languages** — Indonesian, Vietnamese, English
 - **Custom model** — pick from the dropdown or type any OpenRouter model ID
@@ -44,11 +45,21 @@ cd manga-translator
 ## Usage
 
 1. Open any manga page (MangaDex, etc.)
-2. Click the extension icon → toggle **Aktifkan** (Enable)
+2. Click the extension icon → configure languages and model → toggle **Aktifkan** (Enable)
 3. The cursor turns into a crosshair over images
-4. **Click and drag** over a speech bubble to select it
-5. A sticky note appears beside the selection with the translation
-6. Click **×** on the sticky note to dismiss it, or drag a new area
+4. Pick a mode:
+
+### Mode 1 — Drag Select
+- **Click and drag** over a specific speech bubble
+- A sticky note appears beside the selection with the translation
+- Click **×** to dismiss, or drag a new area
+- Sticky note is **draggable** — reposition it anywhere on screen
+
+### Mode 2 — Full Page
+- **Click** anywhere on the manga image
+- The entire page is sent to the Vision LLM at once
+- A translation panel appears at the bottom-right of the image, listing all bubbles in **manga reading order** (right-to-left, top-to-bottom)
+- The panel is **draggable** — grab the header to move it
 
 ---
 
@@ -74,20 +85,36 @@ If you get a `"no endpoints"` error, the model is temporarily offline — just s
 
 ## Architecture
 
+**Mode 1 — Drag Select**
 ```
-User drags selection
+User drags selection box
         │
         ▼
-content.js — crops the selected region (canvas, 2× upscaled)
+content.js crops the region (canvas, 2× upscaled)
         │
         ▼
-background.js — fetches the full image (bypasses CORS)
+background.js fetches image (CORS bypass)
         │
         ▼
-OpenRouter API — Vision LLM handles OCR + translation in one request
+OpenRouter — Vision LLM: OCR + translate in one request
         │
         ▼
-Sticky note rendered beside the selection box
+Draggable sticky note beside the selection
+```
+
+**Mode 2 — Full Page**
+```
+User clicks image
+        │
+        ▼
+background.js fetches full image (CORS bypass)
+        │
+        ▼
+OpenRouter — Vision LLM: detect all bubbles + translate
+            ordered right-to-left, top-to-bottom (manga order)
+        │
+        ▼
+Draggable panel at bottom-right with numbered translations
 ```
 
 **Why Vision LLM instead of Tesseract?**
