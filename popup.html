@@ -142,34 +142,95 @@
       margin-top: 6px;
       min-height: 14px;
     }
+    .divider {
+      border: none;
+      border-top: 1px solid #222;
+      margin: 10px 0;
+    }
+    .provider-badge {
+      font-size: 10px;
+      color: #888;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 2px 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
   </style>
 </head>
 <body>
   <h1><span>📖</span> Manga Translator</h1>
 
+  <!-- Provider selector -->
   <div class="key-row">
-    <span class="label">OpenRouter API Key</span>
-    <input type="password" id="apiKey" class="key-input" placeholder="sk-or-..." autocomplete="off" />
-    <a class="key-link" href="https://openrouter.ai/keys" target="_blank">Daftar gratis di openrouter.ai →</a>
+    <span class="label">Provider</span>
+    <select id="providerSelect" style="width:100%;margin-top:4px">
+      <option value="openrouter">OpenRouter</option>
+      <option value="groq">Groq</option>
+      <option value="ninerouter">9router (local)</option>
+    </select>
   </div>
 
-  <div class="key-row">
-    <span class="label">Model
-      <a class="key-link" style="display:inline;margin-left:6px"
-         href="https://openrouter.ai/models?supported_parameters=vision" target="_blank">
-        browse →
-      </a>
-    </span>
-    <select id="modelSelect">
-      <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen2.5 VL 72B (free)</option>
-      <option value="meta-llama/llama-4-scout:free">Llama 4 Scout (free)</option>
-      <option value="meta-llama/llama-4-maverick:free">Llama 4 Maverick (free)</option>
-      <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (free)</option>
-      <option value="microsoft/phi-4-multimodal-instruct:free">Phi-4 Multimodal (free)</option>
-    </select>
-    <input type="text" id="customModel" class="key-input" placeholder="atau ketik model ID custom..."
-           style="margin-top:5px" autocomplete="off" spellcheck="false" />
+  <!-- OpenRouter section -->
+  <div id="section-openrouter">
+    <div class="key-row">
+      <span class="label">OpenRouter API Key</span>
+      <input type="password" id="apiKey" class="key-input" placeholder="sk-or-..." autocomplete="off" />
+      <a class="key-link" href="https://openrouter.ai/keys" target="_blank">Daftar gratis di openrouter.ai →</a>
+    </div>
+    <div class="key-row">
+      <span class="label">Model
+        <a class="key-link" style="display:inline;margin-left:6px"
+           href="https://openrouter.ai/models?supported_parameters=vision" target="_blank">
+          browse →
+        </a>
+      </span>
+      <select id="modelSelect">
+        <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen2.5 VL 72B (free)</option>
+        <option value="meta-llama/llama-4-scout:free">Llama 4 Scout (free)</option>
+        <option value="meta-llama/llama-4-maverick:free">Llama 4 Maverick (free)</option>
+        <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (free)</option>
+        <option value="microsoft/phi-4-multimodal-instruct:free">Phi-4 Multimodal (free)</option>
+      </select>
+      <input type="text" id="customModel" class="key-input" placeholder="atau ketik model ID custom..."
+             style="margin-top:5px" autocomplete="off" spellcheck="false" />
+    </div>
   </div>
+
+  <!-- Groq section -->
+  <div id="section-groq" style="display:none">
+    <div class="key-row">
+      <span class="label">Groq API Key</span>
+      <input type="password" id="groqKey" class="key-input" placeholder="gsk_..." autocomplete="off" />
+      <a class="key-link" href="https://console.groq.com/keys" target="_blank">Daftar gratis di console.groq.com →</a>
+    </div>
+    <div class="key-row">
+      <span class="label">Model</span>
+      <select id="groqModel" style="width:100%;margin-top:4px">
+        <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B (vision, preview)</option>
+        <option value="openai/gpt-oss-120b">GPT-OSS 120B (production)</option>
+        <option value="openai/gpt-oss-20b">GPT-OSS 20B (production, fastest)</option>
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B (production, text only)</option>
+        <option value="llama-3.1-8b-instant">Llama 3.1 8B (production, text only)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 9router section -->
+  <div id="section-ninerouter" style="display:none">
+    <div class="key-row">
+      <span class="label">Base URL</span>
+      <input type="text" id="ninerouterUrl" class="key-input" placeholder="http://localhost:20128/v1" autocomplete="off" />
+    </div>
+    <div class="key-row">
+      <span class="label">Model</span>
+      <input type="text" id="ninerouterModel" class="key-input" placeholder="cc/claude-sonnet-4-6" autocomplete="off" spellcheck="false" />
+      <a class="key-link" href="https://9router.com/" target="_blank">lihat model di 9router.com →</a>
+    </div>
+  </div>
+
+  <hr class="divider" />
 
   <div class="lang-row">
     <span class="label">Bahasa sumber</span>

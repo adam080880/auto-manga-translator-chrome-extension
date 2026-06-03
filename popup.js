@@ -9,8 +9,25 @@ const modelSelect   = document.getElementById("modelSelect");
 const customModel   = document.getElementById("customModel");
 const modeDrag = document.getElementById("modeDrag");
 const modeFull = document.getElementById("modeFull");
+const providerSelect = document.getElementById("providerSelect");
+const groqKeyInput = document.getElementById("groqKey");
+const groqModelSelect = document.getElementById("groqModel");
+const ninerouterUrlInput = document.getElementById("ninerouterUrl");
+const ninerouterModelInput = document.getElementById("ninerouterModel");
+
+const SECTIONS = {
+  openrouter: document.getElementById("section-openrouter"),
+  groq: document.getElementById("section-groq"),
+  ninerouter: document.getElementById("section-ninerouter"),
+};
 
 let currentMode = "drag";
+
+function showProviderSection(provider) {
+  Object.keys(SECTIONS).forEach((k) => {
+    SECTIONS[k].style.display = k === provider ? "" : "none";
+  });
+}
 
 function setMode(mode) {
   currentMode = mode;
@@ -49,18 +66,40 @@ function updateHint() {
 }
 
 // restore saved state
-chrome.storage.local.get(["active", "sourceLang", "targetLang", "openrouterKey", "model", "customModel", "mode"], (s) => {
+chrome.storage.local.get([
+  "active", "sourceLang", "targetLang",
+  "openrouterKey", "model", "customModel",
+  "provider", "groqKey", "groqModel",
+  "ninerouterUrl", "ninerouterModel",
+  "mode",
+], (s) => {
   toggle.checked = !!s.active;
   sourceLangSelect.value = s.sourceLang || "vi";
   targetLangSelect.value = s.targetLang || "id";
   apiKeyInput.value  = s.openrouterKey || "";
   modelSelect.value  = s.model || "qwen/qwen2.5-vl-72b-instruct:free";
   customModel.value  = s.customModel || "";
+
+  const provider = s.provider || "openrouter";
+  providerSelect.value = provider;
+  showProviderSection(provider);
+
+  groqKeyInput.value = s.groqKey || "";
+  if (s.groqModel) groqModelSelect.value = s.groqModel;
+  ninerouterUrlInput.value = s.ninerouterUrl || "http://localhost:20128/v1";
+  ninerouterModelInput.value = s.ninerouterModel || "";
+
   currentMode = s.mode || "drag";
   modeDrag.classList.toggle("active", currentMode === "drag");
   modeFull.classList.toggle("active", currentMode === "full");
   updateHint();
   if (s.active) status.textContent = currentMode === "drag" ? "Aktif — drag area speech bubble" : "Aktif — klik gambar untuk translate";
+});
+
+providerSelect.addEventListener("change", () => {
+  const provider = providerSelect.value;
+  chrome.storage.local.set({ provider });
+  showProviderSection(provider);
 });
 
 apiKeyInput.addEventListener("change", () => {
@@ -73,6 +112,22 @@ modelSelect.addEventListener("change", () => {
 
 customModel.addEventListener("change", () => {
   chrome.storage.local.set({ customModel: customModel.value.trim() });
+});
+
+groqKeyInput.addEventListener("change", () => {
+  chrome.storage.local.set({ groqKey: groqKeyInput.value.trim() });
+});
+
+groqModelSelect.addEventListener("change", () => {
+  chrome.storage.local.set({ groqModel: groqModelSelect.value });
+});
+
+ninerouterUrlInput.addEventListener("change", () => {
+  chrome.storage.local.set({ ninerouterUrl: ninerouterUrlInput.value.trim() });
+});
+
+ninerouterModelInput.addEventListener("change", () => {
+  chrome.storage.local.set({ ninerouterModel: ninerouterModelInput.value.trim() });
 });
 
 sourceLangSelect.addEventListener("change", async () => {

@@ -16,15 +16,17 @@ function isContextValid() {
   try { return !!chrome.runtime?.id; } catch { return false; }
 }
 
-// ── OpenRouter Vision API ──────────────────────────────────────────────────
+// ── Vision API (OpenRouter / Groq / 9router) ───────────────────────────────
 
 const LANG_NAMES = {
   id: "Indonesian", vi: "Vietnamese", en: "English",
   ja: "Japanese",  zh: "Chinese",    ko: "Korean",
 };
 
-// Free vision models on OpenRouter (user can change in popup)
 const DEFAULT_MODEL = "qwen/qwen2.5-vl-72b-instruct:free";
+const DEFAULT_GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const NINEROUTER_DEFAULT_URL = "http://localhost:20128/v1";
 
 function buildPrompt(fullPage = false) {
   const src = LANG_NAMES[sourceLang] || sourceLang;
@@ -36,15 +38,39 @@ function buildPrompt(fullPage = false) {
 }
 
 async function callVision(base64Image, mimeType, apiKey, prompt) {
-  const model = (await getSetting("customModel")) || (await getSetting("model")) || DEFAULT_MODEL;
+  const provider = (await getSetting("provider")) || "openrouter";
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
+  let endpoint, model, headers;
+
+  if (provider === "groq") {
+    model = (await getSetting("groqModel")) || DEFAULT_GROQ_MODEL;
+    endpoint = GROQ_ENDPOINT;
+    headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    };
+  } else if (provider === "ninerouter") {
+    const baseUrl = (await getSetting("ninerouterUrl")) || NINEROUTER_DEFAULT_URL;
+    model = (await getSetting("ninerouterModel")) || "";
+    endpoint = baseUrl.replace(/\/$/, "") + "/chat/completions";
+    headers = { "Content-Type": "application/json" };
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  } else {
+    // openrouter (default)
+    model = (await getSetting("customModel")) || (await getSetting("model")) || DEFAULT_MODEL;
+    endpoint = "https://openrouter.ai/api/v1/chat/completions";
+    headers = {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
       "HTTP-Referer": location.origin,
-    },
+    };
+  }
+
+  if (!model) throw new Error("Model belum diisi — isi model di popup dulu");
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers,
     body: JSON.stringify({
       model,
       messages: [{
@@ -61,8 +87,7 @@ async function callVision(base64Image, mimeType, apiKey, prompt) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const msg = err.error?.message || `OpenRouter error ${res.status}`;
-    // "no endpoints" = model lagi offline, saranin ganti model
+    const msg = err.error?.message || `API error ${res.status}`;
     if (msg.includes("No endpoints") || msg.includes("no endpoints")) {
       throw new Error("Model offline — coba ganti model lain di popup");
     }
@@ -171,8 +196,8 @@ async function processSelection(img, clientX, clientY, selW, selH) {
 
   try {
     const apiKey = await getApiKey();
-    if (!apiKey) {
-      showToast("Masukkan Gemini API key di popup dulu");
+    if (!apiKey && (await getSetting("provider") || "openrouter") !== "ninerouter") {
+      showToast("Masukkan API key di popup dulu");
       removeSelectionBox();
       return;
     }
@@ -212,6 +237,9 @@ function getSetting(key) {
 }
 
 async function getApiKey() {
+  const provider = (await getSetting("provider")) || "openrouter";
+  if (provider === "groq") return getSetting("groqKey");
+  if (provider === "ninerouter") return ""; // 9router handles auth internally
   return getSetting("openrouterKey");
 }
 
@@ -270,7 +298,9 @@ async function processFullImage(img) {
 
   try {
     const apiKey = await getApiKey();
-    if (!apiKey) { showToast("Masukkan OpenRouter API key di popup dulu"); return; }
+    if (!apiKey && (await getSetting("provider") || "openrouter") !== "ninerouter") {
+      showToast("Masukkan API key di popup dulu"); return;
+    }
 
     const { base64, mime } = await getImageBase64(img);
     const result = await callVision(base64, mime, apiKey, buildPrompt(true));
